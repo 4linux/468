@@ -1,0 +1,25 @@
+version: '3'
+services:
+  coffee-shop:
+    image: sgoncalvestech/coffee-shop
+    container_name: loja_de_cafe
+    ports:
+      - 8080:3000
+    restart: always
+
+  postgres:
+    image: postgres:15
+    container_name: postgres_monitoring
+    environment:
+      POSTGRES_USER: zabbix
+      POSTGRES_PASSWORD: Zbx2024!
+      POSTGRES_DB: ecommerce
+    ports:
+      - 5432:5432
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./postgres-init:/docker-entrypoint-initdb.d
+    restart: always
+
+volumes:
+  postgres_data:
