@@ -11,6 +11,7 @@
         line: "{{ item }}"
       with_items:
         - 172.16.1.110 server-zbx
+        - 172.16.1.112 proxy-zbx
         - 172.16.1.111 app
      
     - name: Instala pacotes que permitem que o apt seja usado sobre HTTPS

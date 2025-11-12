@@ -1,0 +1,142 @@
+---
+- hosts: all
+  become: yes
+  become_user: root
+  become_method: sudo
+  tasks:
+    - name: Garantindo /etc/hosts
+      lineinfile:
+        path: /etc/hosts
+        line: "{{ item }}"
+      with_items:
+        - 172.16.1.110 server-zbx
+        - 172.16.1.112 proxy-zbx
+        - 172.16.1.111 app
+
+    - name: Instala pacotes que permitem que o apt seja usado sobre HTTPS
+      apt:
+        name: "{{ packages }}"
+        state: present
+        update_cache: yes
+      vars:
+        packages:
+        - apt-transport-https
+        - ca-certificates
+        - curl
+        - gnupg-agent
+        - software-properties-common
+        - git
+        - vim
+        - telnet
+        - net-tools
+
+    - name: Baixa o pacote de instalação do Zabbix Proxy
+      get_url:
+        url: https://repo.zabbix.com/zabbix/7.0/debian/pool/main/z/zabbix-release/zabbix-release_latest_7.0+debian12_all.deb
+        dest: /tmp/zabbix-release_latest_7.0+debian12_all.deb
+        mode: '0440'
+
+    - name: Instalando o pacote Zabbix Release
+      apt:
+        deb: /tmp/zabbix-release_latest_7.0+debian12_all.deb
+
+    - name: Atualizando o repositório
+      apt:
+        update_cache: yes
+
+    - name: Instalando Zabbix Proxy com SQLite
+      apt:
+        name: "{{ packages }}"
+        state: present
+        update_cache: yes
+      vars:
+        packages:
+        - zabbix-proxy-sqlite3
+        - zabbix-sql-scripts
+
+    - name: Configurando Zabbix Proxy - Server
+      lineinfile:
+         path: /etc/zabbix/zabbix_proxy.conf
+         regexp: '^Server='
+         line: 'Server=172.16.1.110'
+         backup: yes
+
+    - name: Configurando Zabbix Proxy - Hostname
+      lineinfile:
+         path: /etc/zabbix/zabbix_proxy.conf
+         regexp: '^Hostname='
+         line: 'Hostname=proxy-zbx'
+
+    - name: Configurando Zabbix Proxy - ProxyMode (Passive)
+      lineinfile:
+         path: /etc/zabbix/zabbix_proxy.conf
+         regexp: '^# ProxyMode='
+         line: 'ProxyMode=0'
+
+    - name: Configurando Zabbix Proxy - DBName
+      lineinfile:
+         path: /etc/zabbix/zabbix_proxy.conf
+         regexp: '^DBName='
+         line: 'DBName=/var/lib/zabbix/zabbix_proxy.db'
+
+    - name: Configurando Zabbix Proxy - Timeout
+      lineinfile:
+         path: /etc/zabbix/zabbix_proxy.conf
+         regexp: '^# Timeout='
+         line: 'Timeout=4'
+
+    - name: Configurando Zabbix Proxy - LogSlowQueries
+      lineinfile:
+         path: /etc/zabbix/zabbix_proxy.conf
+         regexp: '^# LogSlowQueries='
+         line: 'LogSlowQueries=3000'
+
+    - name: Criando diretório para banco de dados do proxy
+      file:
+        path: /var/lib/zabbix
+        state: directory
+        owner: zabbix
+        group: zabbix
+        mode: '0755'
+
+    - name: Iniciando e Habilitando Zabbix Proxy
+      service:
+        name: zabbix-proxy
+        state: started
+        enabled: yes
+
+    - name: Remove swap do arquivo /etc/fstab
+      mount:
+        name: "{{ item }}"
+        fstype: swap
+        state: absent
+      with_items:
+        - swap
+        - none
+
+    - name: Configurando locales para pt_BR.UTF-8
+      locale_gen:
+        name: pt_BR.UTF-8
+        state: present
+
+    - name: Atualizando as configurações de locale
+      command: dpkg-reconfigure --frontend=noninteractive locales
+
+    - name: Exibindo informações do Zabbix Proxy
+      debug:
+        msg:
+          - "========================================"
+          - "Zabbix Proxy instalado com sucesso!"
+          - "Hostname: proxy-zbx"
+          - "IP: 172.16.1.112"
+          - "Modo: Passive (ProxyMode=0)"
+          - "Server: 172.16.1.110 (server-zbx)"
+          - "Banco: SQLite (/var/lib/zabbix/zabbix_proxy.db)"
+          - "========================================"
+          - "Próximo passo:"
+          - "Cadastrar proxy no Zabbix Server GUI:"
+          - "Administration → Proxies → Create proxy"
+          - "Name: proxy-zbx"
+          - "Proxy mode: Passive"
+          - "Proxy address: 172.16.1.112"
+          - "========================================"
